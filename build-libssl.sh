@@ -378,6 +378,12 @@ echo
 # Download OpenSSL when not present
 OPENSSL_ARCHIVE_BASE_NAME="openssl-${VERSION}"
 OPENSSL_ARCHIVE_FILE_NAME="${OPENSSL_ARCHIVE_BASE_NAME}.tar.gz"
+
+# there has been issues downloading sources from www.openssl.org/source
+# and GitHub doesn't seem to allow downloading using curl so we use 
+# i local download and just copy it in.
+cp ../${OPENSSL_ARCHIVE_FILE_NAME} .
+
 if [ ! -e ${OPENSSL_ARCHIVE_FILE_NAME} ]; then
   echo "Downloading ${OPENSSL_ARCHIVE_FILE_NAME}..."
   OPENSSL_ARCHIVE_URL="https://www.openssl.org/source/${OPENSSL_ARCHIVE_FILE_NAME}"
