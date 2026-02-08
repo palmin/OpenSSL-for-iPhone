@@ -25,7 +25,7 @@ set -u
 # SCRIPT DEFAULTS
 
 # Default version in case no version is specified
-DEFAULTVERSION="1.1.1k"
+DEFAULTVERSION="3.5.5"
 
 # Default (=full) set of targets to build
 DEFAULTTARGETS="ios-sim-cross-x86_64 ios64-cross-arm64 ios64-cross-arm64e tvos-sim-cross-x86_64 tvos64-cross-arm64"  # mac-catalyst-x86_64 is a valid target that is not in the DEFAULTTARGETS because it's incompatible with "ios-sim-cross-x86_64"
@@ -55,7 +55,7 @@ echo_help()
   echo " -v, --verbose                     Enable verbose logging"
   echo "     --verbose-on-error            Dump last 500 lines from log file if an error occurs (for Travis builds)"
   echo "     --version=VERSION             OpenSSL version to build (defaults to ${DEFAULTVERSION})"
-  echo "     --deprecated                  Exclude no-deprecated configure option and build with deprecated methods"
+  echo "     --no-deprecated               Add no-deprecated configure option to exclude deprecated APIs"
   echo "     --targets=\"TARGET TARGET ...\" Space-separated list of build targets"
   echo "                                     Options: ${DEFAULTTARGETS} mac-catalyst-x86_64"
   echo
@@ -173,10 +173,10 @@ finish_build_loop()
     fi
   fi
 
-  # Copy opensslconf.h to bin directory and add to array
-  OPENSSLCONF="opensslconf_${OPENSSLCONF_SUFFIX}.h"
-  cp "${TARGETDIR}/include/openssl/opensslconf.h" "${CURRENTPATH}/bin/${OPENSSLCONF}"
-  OPENSSLCONF_ALL+=("${OPENSSLCONF}")
+  # Copy configuration.h to bin directory and add to array
+  CONFIGURATION="configuration_${OPENSSLCONF_SUFFIX}.h"
+  cp "${TARGETDIR}/include/openssl/configuration.h" "${CURRENTPATH}/bin/${CONFIGURATION}"
+  CONFIGURATION_ALL+=("${CONFIGURATION}")
 
   # Keep reference to first build target for include file
   if [ -z "${INCLUDE_DIR}" ]; then
@@ -214,8 +214,8 @@ case $i in
   --cleanup)
     CLEANUP="true"
     ;;
-  --deprecated)
-    CONFIG_NO_DEPRECATED="false"
+  --no-deprecated)
+    CONFIG_NO_DEPRECATED="true"
     ;;
   --ec-nistp-64-gcc-128)
     CONFIG_ENABLE_EC_NISTP_64_GCC_128="true"
@@ -305,8 +305,8 @@ if [ ! -n "${TARGETS}" ]; then
   TARGETS="${DEFAULTTARGETS}"
 fi
 
-# Add no-deprecated config option (if not overwritten)
-if [ "${CONFIG_NO_DEPRECATED}" != "false" ]; then
+# Add no-deprecated config option (only when explicitly requested)
+if [ "${CONFIG_NO_DEPRECATED}" == "true" ]; then
   CONFIG_OPTIONS="${CONFIG_OPTIONS} no-deprecated"
 fi
 
@@ -446,7 +446,7 @@ mkdir -p "${CURRENTPATH}/src"
 
 # Init vars for library references
 INCLUDE_DIR=""
-OPENSSLCONF_ALL=()
+CONFIGURATION_ALL=()
 LIBSSL_IOS=()
 LIBCRYPTO_IOS=()
 LIBSSL_TVOS=()
@@ -482,23 +482,24 @@ echo "\n=====>Include directory:"
 echo "${CURRENTPATH}/include/"
 
 # Only create intermediate file when building for multiple targets
-# For a single target, opensslconf.h is still present in $INCLUDE_DIR (and has just been copied to the target include dir)
-if [ ${#OPENSSLCONF_ALL[@]} -gt 1 ]; then
+# For a single target, configuration.h is still present in $INCLUDE_DIR (and has just been copied to the target include dir)
+if [ ${#CONFIGURATION_ALL[@]} -gt 1 ]; then
 
-  # Prepare intermediate header file
-  # This overwrites opensslconf.h that was copied from $INCLUDE_DIR
-  OPENSSLCONF_INTERMEDIATE="${CURRENTPATH}/include/openssl/opensslconf.h"
-  cp "${CURRENTPATH}/include/opensslconf-template.h" "${OPENSSLCONF_INTERMEDIATE}"
+  # Prepare intermediate configuration.h header file
+  # In OpenSSL 3.x, opensslconf.h is a static wrapper that includes configuration.h
+  # The per-platform generated file is configuration.h
+  CONFIGURATION_INTERMEDIATE="${CURRENTPATH}/include/openssl/configuration.h"
+  cp "${CURRENTPATH}/include/configuration-template.h" "${CONFIGURATION_INTERMEDIATE}"
 
   # Loop all header files
   LOOPCOUNT=0
-  for OPENSSLCONF_CURRENT in "${OPENSSLCONF_ALL[@]}" ; do
+  for CONFIGURATION_CURRENT in "${CONFIGURATION_ALL[@]}" ; do
 
-    # Copy specific opensslconf file to include dir
-    cp "${CURRENTPATH}/bin/${OPENSSLCONF_CURRENT}" "${CURRENTPATH}/include/openssl"
+    # Copy specific configuration file to include dir
+    cp "${CURRENTPATH}/bin/${CONFIGURATION_CURRENT}" "${CURRENTPATH}/include/openssl"
 
     # Determine define condition
-    case "${OPENSSLCONF_CURRENT}" in
+    case "${CONFIGURATION_CURRENT}" in
       *_macos_x86_64.h)
         DEFINE_CONDITION="TARGET_OS_OSX && TARGET_CPU_X86_64"
       ;;
@@ -544,19 +545,19 @@ if [ ${#OPENSSLCONF_ALL[@]} -gt 1 ]; then
     # Determine loopcount; start with if and continue with elif
     LOOPCOUNT=$((LOOPCOUNT + 1))
     if [ ${LOOPCOUNT} -eq 1 ]; then
-      echo "#if ${DEFINE_CONDITION}" >> "${OPENSSLCONF_INTERMEDIATE}"
+      echo "#if ${DEFINE_CONDITION}" >> "${CONFIGURATION_INTERMEDIATE}"
     else
-      echo "#elif ${DEFINE_CONDITION}" >> "${OPENSSLCONF_INTERMEDIATE}"
+      echo "#elif ${DEFINE_CONDITION}" >> "${CONFIGURATION_INTERMEDIATE}"
     fi
 
     # Add include
-    echo "# include <openssl/${OPENSSLCONF_CURRENT}>" >> "${OPENSSLCONF_INTERMEDIATE}"
+    echo "# include <openssl/${CONFIGURATION_CURRENT}>" >> "${CONFIGURATION_INTERMEDIATE}"
   done
 
   # Finish
-  echo "#else" >> "${OPENSSLCONF_INTERMEDIATE}"
-  echo '# error Unable to determine target or target not included in OpenSSL build' >> "${OPENSSLCONF_INTERMEDIATE}"
-  echo "#endif" >> "${OPENSSLCONF_INTERMEDIATE}"
+  echo "#else" >> "${CONFIGURATION_INTERMEDIATE}"
+  echo '# error Unable to determine target or target not included in OpenSSL build' >> "${CONFIGURATION_INTERMEDIATE}"
+  echo "#endif" >> "${CONFIGURATION_INTERMEDIATE}"
 fi
 
 echo "Done."
