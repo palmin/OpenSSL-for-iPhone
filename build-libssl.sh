@@ -31,7 +31,7 @@ DEFAULTVERSION="3.5.5"
 DEFAULTTARGETS="ios-sim-cross-x86_64 ios64-cross-arm64 ios64-cross-arm64e tvos-sim-cross-x86_64 tvos64-cross-arm64"  # mac-catalyst-x86_64 is a valid target that is not in the DEFAULTTARGETS because it's incompatible with "ios-sim-cross-x86_64"
 
 # Minimum iOS/tvOS SDK version to build for
-IOS_MIN_SDK_VERSION="12.0"
+IOS_MIN_SDK_VERSION="16.0"
 TVOS_MIN_SDK_VERSION="12.0"
 MACOSX_MIN_SDK_VERSION="12.0"
 
